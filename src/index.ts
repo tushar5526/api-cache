@@ -1,10 +1,56 @@
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Song } from '@prisma/client'
 import express from 'express'
+import Redis from 'ioredis'
+import { RedisCache } from 'layered-loader/dist/lib/redis'
+import { InMemoryCache } from 'layered-loader/dist/lib/memory'
+import { LoadingOperation, Loader } from 'layered-loader'
 
 const prisma = new PrismaClient()
 const app = express()
 app.use(express.json())
+
+const ioRedis = new Redis({
+    host: 'localhost',
+    port: 6379,
+    password: 'sOmE_sEcUrE_pAsS',
+})
+
+class ClassifiersLoader implements Loader<string> {
+    name = 'Classifiers DB loader'
+    isCache = false
+    private readonly prismaClient: PrismaClient
+
+    constructor(prismaClient: PrismaClient) {
+        this.prismaClient = prismaClient
+    }
+
+    async get(key: string): Promise<string | undefined | null> {
+        const song = await this.prismaClient.song.findFirst({
+            where: { id: Number(key) },
+        })
+        return song?.title;
+    }
+}
+
+const operation = new LoadingOperation<string>({
+    // this cache will be checked first
+    inMemoryCache: {
+        ttlInMsecs: 1000 * 60,
+        maxItems: 100,
+    },
+
+    // this cache will be checked if in-memory one returns undefined
+    asyncCache: new RedisCache(ioRedis, {
+        json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
+        ttlInMsecs: 1000 * 60 * 10,
+    }),
+
+    // this will be used if neither cache has the requested data
+    loaders: [new ClassifiersLoader(prisma)]
+})
+
+// If cache is empty, but there is data in the DB, after this operation is completed, both caches will be populated
 
 //* 1. Fetches all released songs.
 app.get('/playlist', async (req, res) => {
@@ -21,12 +67,11 @@ app.get('/playlist', async (req, res) => {
 //* 2. Fetches a specific song by its ID.
 app.get(`/song/:id`, async (req, res) => {
     const { id } = req.params
-    const song = await prisma.song.findFirst({
-        where: { id: Number(id) },
-    })
+    const classifier = await operation.get(id)
+    console.log(classifier)
     res.json({
         success: true,
-        payload: song,
+        payload: classifier,
     })
 })
 
