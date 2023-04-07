@@ -72,6 +72,7 @@ const operation = new LoadingOperation<Artist[] | Song | Song[]>({
 
 //* 1. Fetches all released songs.
 app.get('/playlist', async (req, res) => {
+    console.log("Get playlist")
     const songs = await operation.get('playlist')
     res.json({
         success: true,
@@ -82,7 +83,13 @@ app.get('/playlist', async (req, res) => {
 //* 2. Fetches a specific song by its ID.
 app.get(`/song/:id`, async (req, res) => {
     const { id } = req.params
+    console.log("Get Song by ID", id)
+
     let song = await operation.get('song_' + id)
+    if (!song) {
+        await operation.invalidateCacheFor('song_' + id)
+        song = await operation.get('song_' + id)
+    }
     res.json({
         success: true,
         payload: song,
@@ -91,6 +98,7 @@ app.get(`/song/:id`, async (req, res) => {
 
 //* 7. Fetches all Artist.
 app.get('/artists', async (req, res) => {
+    console.log("Get Artists")
     const artists = await operation.get('artists')
     res.json({
         success: true,
@@ -100,6 +108,7 @@ app.get('/artists', async (req, res) => {
 
 //* 3. Creates a new artist.
 app.post(`/artist`, async (req, res) => {
+    console.log("Create Artist", req.body.name)
     const result = await prisma.artist.create({
         data: { ...req.body },
     })
@@ -111,6 +120,7 @@ app.post(`/artist`, async (req, res) => {
 
 //* 4. Creates (or compose) a new song (unreleased)
 app.post(`/song`, async (req, res) => {
+    console.log("Create Song", req.body.title)
     const { title, content, singerEmail } = req.body
     const result = await prisma.song.create({
         data: {
@@ -128,6 +138,7 @@ app.post(`/song`, async (req, res) => {
 
 //* 5. Sets the released field of a song to true.
 app.put('/song/release/:id', async (req, res) => {
+    console.log("release song", req.params.id)
     const { id } = req.params
     const song = await prisma.song.update({
         where: { id: Number(id) },
