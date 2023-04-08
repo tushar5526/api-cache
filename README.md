@@ -2,6 +2,22 @@
 
 Test repo to push TPS
 
+## Step to Run
+
+
+```
+npm i
+docker-compose up -d
+npm start:dev
+```
+
+Load Test
+----------
+```
+k6 run loadTestk6.js
+```
+
+
 Test the API routes
 --------------------
 
